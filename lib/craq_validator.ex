@@ -3,83 +3,75 @@ defmodule CraqValidator do
   Used for CRAQ validation when changes are requested by a user.
   """
 
+  @key_map %{0 => :q0, 1 => :q1, 2 => :q2, 3 => :q3, 4 => :q4}
+
   @doc """
+  This function validates two things: the presence of an answer,
+  and the answer itself.
 
-  ## Examples
+  When a valid answer is chosen that has the complete_if_selected property,
+  a %{answers_complete: true} map is added to the accumulator to indicate that
+  subsequent questions should not have answers.
 
-      iex> CraqValidator.
+  If there is no %{answers_complete: true} map, and an answer is missing,
+  it indicates that we need to send an error message to the user.
+
+  If a valid answer is selected, but does not have the complete_if_selected property,
+  a %{answers_complete: false} map is added to the accumulator as a throwaway value.
+  All maps with the key of :answers_complete are filtered from the errors accumulator.
 
   """
-  @key_map %{0 => :q0, 1 => :q1, 2 => :q2, 3 => :q3, 4 => :q4}
-  # TODO:
-  # module doc
-  # doc
-  # doc test?
-  # DONE rest of tests--more than halfway finished!!
-  # Refactor
-  # change master to main
-  # README
-
-  # POSSIBLE SOLUTION #1
-  # Enumerate over answers, get index
-  # use index to get qx atom key
-  # use atom key to get answer from user
-  # if answer from user is not present in options, not a valid answer message
-  # if answer from user is present AND complete if selected, add answers_complete atom to acc to signal to subsequent questions to send "already answered" message
-  # further validation with options_list_check function
-
   @spec validate_craq(map(), list()) :: list()
-  def validate_craq(answer_map_from_user, question_answer_list) do
-    # Keyword
-    question_answer_list
+  def validate_craq(user_answers, question_list) do
+    question_list
     |> Enum.with_index()
-    |> Enum.reduce([], fn {%{options: answer_options_list}, index}, acc ->
+    |> Enum.reduce([], fn {%{options: answer_options}, index}, acc ->
       atom_key = Map.get(@key_map, index)
-      # answer_from_user = get_user_answer(answer_map_from_user, atom_key, acc)
 
       question_response_map =
-      with answer_from_user when is_integer(answer_from_user) <- get_user_answer(answer_map_from_user, atom_key, acc) do
-        case Enum.at(answer_options_list, answer_from_user) do
-          nil -> %{atom_key => "has an answer that is not on the list of valid answers"}
-          %{complete_if_selected: true} -> %{answers_complete: true}
-          _ -> %{answers_complete: false}
+        case validate_answer_presence(user_answers, atom_key, acc) do
+          %{user_answer: user_answer} -> validate_answer_value(answer_options, user_answer, atom_key)
+          response_map -> response_map
         end
-      else
-        user_answer_map ->
-          user_answer_map
-      end
 
       [question_response_map | acc]
-      # Map.merge(acc, question_response_map)
     end)
     |> Enum.reverse()
     |> Enum.reject(fn map_item -> Map.has_key?(map_item, :answers_complete) end)
-    # If map is empty, return %{craq_valid: true} or {:ok, []}
-    # If map is not empty, return {:error, invalid_reasons_list}
   end
 
-  defp get_user_answer(nil, atom_key, _), do: %{atom_key => "was not answered"}
-  defp get_user_answer(map, atom_key, _) when map_size(map) == 0, do:  %{atom_key => "was not answered"}
+  def missing_answer, do: "was not answered"
+  def invalid_answer, do: "has an answer that is not on the list of valid answers"
 
-  # If there is the answers_complete property in the map,
-  # and you can't find a user answer for this question,
-  # return %{ok: true}
-  # if you CAN find a user answer for this question,
-  # return "was answered" message
-  defp get_user_answer(user_answer_map, atom_key, acc) do
+  def terminal_answer_reached,
+    do: "was answered even though a previous response indicated that the questions were complete"
+
+  @spec validate_answer_presence(nil | map(), atom(), list()) :: map()
+  defp validate_answer_presence(nil, atom_key, _), do: %{atom_key => missing_answer()}
+
+  defp validate_answer_presence(user_answers, atom_key, _) when map_size(user_answers) == 0,
+    do: %{atom_key => missing_answer()}
+
+  defp validate_answer_presence(user_answers, atom_key, acc) do
     if Enum.member?(acc, %{answers_complete: true}) do
-      case Map.get(user_answer_map, atom_key, nil) do
+      case Map.get(user_answers, atom_key, nil) do
         nil -> %{answers_complete: true}
-        _ -> %{
-          atom_key =>
-            "was answered even though a previous response indicated that the questions were complete"
-        }
+        _ -> %{atom_key => terminal_answer_reached()}
       end
     else
-      case Map.get(user_answer_map, atom_key, nil) do
-        nil -> %{atom_key => "was not answered"}
-        user_answer -> user_answer
+      case Map.get(user_answers, atom_key, nil) do
+        nil -> %{atom_key => missing_answer()}
+        user_answer -> %{user_answer: user_answer}
       end
+    end
+  end
+
+  @spec validate_answer_value(list(), integer(), atom()) :: map()
+  defp validate_answer_value(answer_options, user_answer, atom_key) do
+    case Enum.at(answer_options, user_answer) do
+      nil -> %{atom_key => invalid_answer()}
+      %{complete_if_selected: true} = _valid_answer -> %{answers_complete: true}
+      _valid_answer -> %{answers_complete: false}
     end
   end
 end
