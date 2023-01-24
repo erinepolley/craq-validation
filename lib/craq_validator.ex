@@ -17,6 +17,8 @@ defmodule CraqValidator do
   # module doc
   # doc
   # rest of tests
+  # change master to main
+  # README
 
   # [%{
   #     text: "Why did you not select 42 as the answer to the previous question?",
@@ -36,10 +38,10 @@ defmodule CraqValidator do
   # if answer from user is present AND complete if selected, add answers_complete atom to acc to signal to subsequent questions to send "already answered" message
   # further validation with options_list_check function
 
-  def craq_validator(question_answer_list, answer_map_from_user) do
+  def craq_validator(answer_map_from_user, question_answer_list) do
     # Keyword list
     question_answer_list_with_index = Enum.with_index(question_answer_list)
-    Enum.reduce(question_answer_list_with_index, %{}, fn {%{options: answer_options_list}, index}, acc ->
+    Enum.reduce(question_answer_list_with_index, [], fn {%{options: answer_options_list}, index}, acc ->
       atom_key = Map.get(@key_map, index)
       # answer_from_user = get_user_answer(answer_map_from_user, atom_key, acc)
 
@@ -48,16 +50,29 @@ defmodule CraqValidator do
         case Enum.at(answer_options_list, answer_from_user) do
           nil -> %{atom_key => "has an answer that is not on the list of valid answers"}
           %{complete_if_selected: true} -> %{answers_complete: true}
-          _ -> %{ok: true}
+          _ -> %{answers_complete: false}
         end
       else
         user_answer_map ->
           user_answer_map
       end
 
-      Map.merge(acc, question_response_map)
+      [question_response_map | acc]
+      # Map.merge(acc, question_response_map)
     end)
-    # Filter out answers_complete property
+    |> IO.inspect(label: "what is right before list reverse?")
+    |> Enum.reverse()
+    |> IO.inspect(label: "what is right after list reverse?")
+    # Filter out answers_complete and ok properties
+    # |> Enum.reject(fn {key, _val} -> key in [:ok, :answers_complete] end)
+    |> Enum.reject(fn map_item -> Map.has_key?(map_item, :answers_complete) end)
+    # |> Enum.reject(fn map_item ->
+    #   for {key, val} <- map_item do
+    #     IO.inspect(key, label: "key")
+    #     IO.inspect(val, label: "value")
+    #     key in [:ok, :answers_complete]
+    #   end
+    # end)
     # If map is empty, return %{craq_valid: true} or {:ok, %{craq_valid: true}}
     # If map is not empty, return {:error, invalid_reasons_map}
   end
@@ -70,27 +85,44 @@ defmodule CraqValidator do
   # return %{ok: true}
   # if you CAN find a user answer for this question,
   # return "was answered" message
-  defp get_user_answer(user_answer_map, atom_key, %{answers_complete: true}) do
-    case Map.get(user_answer_map, atom_key, nil) do
-      nil -> %{ok: true}
-      _ -> %{
-        atom_key =>
-          "was answered even though a previous response indicated that the questions were complete"
-      }
+  defp get_user_answer(user_answer_map, atom_key, acc_list) do
+    if %{answers_complete: true} in acc_list do
+      case Map.get(user_answer_map, atom_key, nil) do
+        nil -> %{ok: true}
+        _ -> %{
+          atom_key =>
+            "was answered even though a previous response indicated that the questions were complete"
+        }
+      end
+    else
+      case Map.get(user_answer_map, atom_key, nil) do
+        nil -> %{atom_key => "was not answered"}
+        user_answer -> user_answer
+      end
     end
   end
 
-  # If there isn't the answers_complete property in the map,
-  # and you can't find a user answer for this question,
-  # return "was not answered" message
-  # if you CAN find a user answer for this question,
-  # return %{:ok, true}
-  defp get_user_answer(user_answer_map, atom_key, _) do
-    case Map.get(user_answer_map, atom_key, nil) do
-      nil -> %{atom_key => "was not answered"}
-      user_answer -> user_answer
-    end
-  end
+  # defp get_user_answer(user_answer_map, atom_key, %{answers_complete: true}) do
+  #   case Map.get(user_answer_map, atom_key, nil) do
+  #     nil -> %{ok: true}
+  #     _ -> %{
+  #       atom_key =>
+  #         "was answered even though a previous response indicated that the questions were complete"
+  #     }
+  #   end
+  # end
+
+  # # If there isn't the answers_complete property in the map,
+  # # and you can't find a user answer for this question,
+  # # return "was not answered" message
+  # # if you CAN find a user answer for this question,
+  # # return %{:ok, true}
+  # defp get_user_answer(user_answer_map, atom_key, _) do
+  #   case Map.get(user_answer_map, atom_key, nil) do
+  #     nil -> %{atom_key => "was not answered"}
+  #     user_answer -> user_answer
+  #   end
+  # end
 
 
   # POSSIBLE SOLUTION #2
