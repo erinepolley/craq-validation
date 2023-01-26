@@ -21,7 +21,7 @@ defmodule CraqValidator do
   All maps with the key of :answers_complete are filtered from the errors accumulator.
 
   """
-  @spec validate_craq(map(), list()) :: list()
+  @spec validate_craq(map(), list(map())) :: list(map())
   def validate_craq(user_answers, question_list) do
     question_list
     |> Enum.with_index()
@@ -46,7 +46,7 @@ defmodule CraqValidator do
   def terminal_answer_reached,
     do: "was answered even though a previous response indicated that the questions were complete"
 
-  @spec validate_answer_presence(nil | map(), atom(), list()) :: map()
+  @spec validate_answer_presence(nil | map(), atom(), list(map())) :: map()
   defp validate_answer_presence(nil, atom_key, _), do: %{atom_key => missing_answer()}
 
   defp validate_answer_presence(user_answers, atom_key, _) when map_size(user_answers) == 0,
@@ -66,7 +66,7 @@ defmodule CraqValidator do
     end
   end
 
-  @spec validate_answer_value(list(), integer(), atom()) :: map()
+  @spec validate_answer_value(list(map()), integer(), atom()) :: map()
   defp validate_answer_value(answer_options, user_answer, atom_key) do
     case Enum.at(answer_options, user_answer) do
       nil -> %{atom_key => invalid_answer()}
